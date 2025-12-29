@@ -1,0 +1,5 @@
+# Minimal requirements to get started (no GPU)
+numpy>=1.21.0
+scipy>=1.7.0
+pytest>=7.0.0
+grimp>=3.0

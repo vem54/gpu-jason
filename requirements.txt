@@ -1,0 +1,17 @@
+# Core dependencies
+numpy>=1.21.0
+scipy>=1.7.0
+
+# GPU support (for GTX 16-series with CUDA 11)
+# Install with: pip install cupy-cuda11x
+# Or for CUDA 12: pip install cupy-cuda12x
+cupy-cuda11x>=11.0.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-benchmark>=4.0.0
+grimp>=3.0
+import-linter>=2.0
+
+# Optional: OpenSpiel for validation
+# open-spiel>=1.3

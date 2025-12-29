@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "name": "configurations",
+  "data": [
+    {
+      "path": [
+        "test"
+      ],
+      "isGroup": false,
+      "value": {
+        "startingPot": 100,
+        "effectiveStack": 100,
+        "rakePercent": 0,
+        "rakeCap": 0,
+        "donkOption": 0,
+        "oopFlopBet": "",
+        "oopFlopRaise": "",
+        "oopTurnBet": "100",
+        "oopTurnRaise": "",
+        "oopTurnDonk": "",
+        "oopRiverBet": "100",
+        "oopRiverRaise": "",
+        "oopRiverDonk": "",
+        "ipFlopBet": "",
+        "ipFlopRaise": "",
+        "ipTurnBet": "100",
+        "ipTurnRaise": "",
+        "ipRiverBet": "100",
+        "ipRiverRaise": "",
+        "addAllInThreshold": 150,
+        "forceAllInThreshold": 20,
+        "mergingThreshold": 10,
+        "expectedBoardLength": 0,
+        "addedLines": "",
+        "removedLines": ""
+      }
+    }
+  ]
+}
