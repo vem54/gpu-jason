@@ -72,6 +72,9 @@
 **Chosen:** Option 2 - Investigated CPU reference
 **Rationale:** Found bug where `get_strategy()` was called during chance node loop, so strategy changed mid-iteration as regrets were updated. Fixed by computing all strategies once at iteration start.
 
+**Reversibility:** Easy - can revert the `_compute_all_strategies()` change
+**Revisit if:** CPU reference starts producing different results than expected
+
 ---
 
 ### Decision: Remove river_weight from River Regret/Strategy Accumulation
@@ -82,6 +85,26 @@
 
 **Chosen:** Option 2 - Remove river_weight from GPU
 **Rationale:** In vanilla CFR, regrets and strategies accumulate across all situations. The river_weight (1/44) is only for averaging EVs at chance nodes, not for scaling regrets. CPU accumulates without weighting, GPU should match.
+
+**Reversibility:** Easy - add back `* river_weight` to lines 312-318 and 279-282
+**Revisit if:** If it turns out regrets SHOULD be weighted at chance nodes (unlikely based on CFR theory)
+
+---
+
+## December 29, 2025 (Session 4)
+
+### Decision: Create GitHub Repository
+**Context:** Need version control and remote backup for project
+**Options considered:**
+1. Local git only
+2. GitHub public repo
+3. GitHub private repo
+
+**Chosen:** GitHub public repo
+**Rationale:** User requested. Created via `gh repo create gpu-jason --public`
+
+**Reversibility:** Easy - can make private or delete repo
+**Revisit if:** User wants to keep code private
 
 ---
 

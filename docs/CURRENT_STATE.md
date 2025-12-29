@@ -1,76 +1,94 @@
-# Project State - December 29, 2025 (Session 3)
+# Project State - December 29, 2025 (Session 4)
 
-## What Works
+## Environment
+- **Branch:** master
+- **Last commit:** `8becd25` - Initial commit: GPU poker CFR solver
+- **Uncommitted changes:** No
+- **Working directory:** `C:\Users\jsnbr\Desktop\gpu-jason`
+- **GitHub repo:** https://github.com/vem54/gpu-jason
+- **Key dependencies:** CuPy (GPU), NumPy, Python 3.x
 
-### GPU River Solver (Fully Functional)
-- **File:** `gpu_poker_cfr/solvers/gpu_river_solver.py`
-- ~10,000 iter/s performance
-- Validated against reference Python CFR
+## What Works (Verified)
 
-### GPU Turn Solver Infrastructure
-- **File:** `gpu_poker_cfr/solvers/gpu_turn_solver.py`
-- ~1,280 iter/s performance
-- Handles CHANCE nodes (river card dealing)
-- Tree building, infoset mapping, hand evaluation all correct
-- CPU and GPU now produce **identical regrets** after fixes
-
-### CPU Reference Implementation (Fixed This Session)
-- **File:** `cpu_turn_cfr_reference.py`
-- Now correctly computes strategies ONCE at iteration start
-- Previously had bug where strategy changed mid-iteration during chance node loop
+| Component | Status | Verification Command | Last Verified |
+|-----------|--------|---------------------|---------------|
+| GPU River Solver | ✅ Working | `python -c "from gpu_poker_cfr.solvers.gpu_river_solver import GPURiverSolver; print('OK')"` | Session 2 |
+| GPU Turn Solver Infrastructure | ✅ Working | `python gpu_turn_solver.py` (runs 1000 iter) | Session 3 |
+| CPU Reference | ✅ Working | `python cpu_turn_cfr_reference.py` | Session 3 |
+| CPU-GPU Regret Match | ✅ Working | `python debug_river_regret_scale.py` | Session 3 |
+| GitHub Integration | ✅ Working | `git remote -v` shows origin | Session 4 |
 
 ## What's Broken
 
-### WASM/Pio Strategy Mismatch (STILL UNSOLVED)
-**Our solver results (1000 iterations):**
-- Node 0 (OOP turn): Check 97.0%, All-in 3.0%
-- Node 1 (IP after OOP check): Check 98.9%, All-in 1.1%
-- Node 4 (OOP facing all-in): Fold 55.3%, Call 44.7%
+| Component | Status | Symptom | Error (verbatim) |
+|-----------|--------|---------|------------------|
+| Turn Strategy Convergence | ❌ Broken | Converges to ~99% Check instead of ~60% Check | No error - wrong equilibrium |
 
-**WASM/Pio expected:**
-- Node 0 (OOP turn): Check 91.8%, All-in 8.2%
-- Node 1 (IP after OOP check): Check ~60%, All-in ~40%
+## In Progress (Partial)
 
-**Status:** Regrets now match between CPU and GPU, but strategy still converges to wrong equilibrium.
+| Component | % Done | What Remains | Blocked By |
+|-----------|--------|--------------|------------|
+| Turn Solver Validation | ~80% | Find why both CPU and GPU converge to wrong equilibrium | Strategy convergence blocker |
 
 ## Current Approach
-- CFR+ with linear averaging
-- GPU kernel: one thread per deal, loops over valid rivers internally
-- Chance nodes average EVs using `river_weight = 1/num_valid_rivers`
-- River regrets/strategy: accumulate WITHOUT river_weight (fixed this session)
-- Turn regrets/strategy: use averaged EVs from chance nodes (unchanged)
+
+### Strategy
+GPU CFR+ solver with one CUDA thread per deal, looping over 44 valid river cards internally. Chance nodes average EVs with `river_weight = 1/N`. Regrets and strategies accumulate WITHOUT river_weight at river nodes. CPU reference implementation mirrors this for comparison.
+
+### Key Assumptions
+- CFR+ with linear averaging is the correct algorithm — if WASM uses different variant (DCFR, LCFR), results may legitimately differ
+- River_weight should NOT be applied to regret/strategy accumulation — if wrong, would need to re-examine CFR theory for chance nodes
+- Infosets are correctly defined (one per hand per decision node) — verified, unlikely to be wrong
+
+### Implementation Details
+- Tree has 24 nodes: turn decisions, chance nodes, river decisions, terminals
+- Ranges: OOP (AA, KK, AK, AQ, AJ, AT), IP (AA, KK, JJ, 55, AK, AQ, JT)
+- Board: Ks Qd 7h 2c (turn)
+- Pot: 100, Stacks: 200, All-in only betting
+- GPU kernel uses atomicAdd for regret/strategy accumulation
 
 ## Files Modified This Session
 
-| File | Change |
-|------|--------|
-| `gpu_poker_cfr/solvers/gpu_turn_solver.py` | **Lines 312-318:** Removed `river_weight` from river regret update. **Lines 279-282:** Removed `river_weight` from river strategy accumulation. |
-| `cpu_turn_cfr_reference.py` | Added `_compute_all_strategies()` method. Modified `iterate()` to compute strategies once at iteration start, clear after iteration. |
-| `debug_river_regret_scale.py` | Created - compares CPU vs GPU regret values after 1 iteration |
-| `debug_cpu_evs.py` | Created - traces CPU EV computation with detailed logging |
-| `debug_regret_per_deal.py` | Created - analyzes per-deal regret contributions for IP JJ |
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `.gitignore` | Created (Prev Session) | Standard Python/CUDA gitignore |
+| GitHub repo | Created | https://github.com/vem54/gpu-jason |
 
-## Dead Ends (DO NOT RETRY THESE)
+## Files Modified Previous Session (Session 3)
 
-### 1. Removing river_weight from regret update ONLY (Session 2)
-**Tried:** Only removed river_weight from regret, not strategy accumulation
-**Result:** Made results WORSE (99%+ Check)
-**Why it failed:** Strategy and regrets must be scaled consistently
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `gpu_poker_cfr/solvers/gpu_turn_solver.py` | Modified | Removed `river_weight` from river regret update (lines 312-318) and strategy accumulation (lines 279-282) |
+| `cpu_turn_cfr_reference.py` | Modified | Added `_compute_all_strategies()` method to fix mid-iteration strategy change bug |
+| `debug_river_regret_scale.py` | Created | Compares CPU vs GPU regret values after 1 iteration |
+| `debug_cpu_evs.py` | Created | Traces CPU EV computation with detailed logging |
+| `debug_regret_per_deal.py` | Created | Analyzes per-deal regret contributions for IP JJ |
 
-### 2. CPU reference as ground truth (THIS SESSION)
-**Tried:** Comparing GPU to original CPU reference
-**Result:** CPU and GPU had OPPOSITE regret signs initially
-**Why it failed:** CPU reference had bug - strategy changed mid-iteration during chance node loop because `get_strategy()` was called for each river and regrets were updated between calls
+## Dead Ends (DO NOT RETRY)
 
-### 3. Looking for EV bugs in GPU kernel (Session 2)
-**Tried:** Created debug kernels to trace EV values
-**Result:** EVs are computed correctly, chance node averaging is correct
-**Why it failed:** The bug was in regret accumulation scale, not EV computation
+### ❌ 1. Removing river_weight from regret update ONLY
+- **What we tried:** Only removed river_weight from regret, not strategy accumulation
+- **Why it failed:** Strategy and regrets must be scaled consistently; partial fix made things worse
+- **Evidence:** Results went from ~97% Check to 99%+ Check
+- **Why it's not worth retrying:** We now remove river_weight from BOTH, which is consistent
 
-### 4. Double-weighting hypothesis (Session 2)
-**Tried:** Checked if child EVs already contained reach weighting
-**Result:** EVs are conditional values, not reach-weighted
-**Why it failed:** Not the issue
+### ❌ 2. CPU reference as ground truth (without fix)
+- **What we tried:** Comparing GPU to original CPU reference
+- **Why it failed:** CPU reference had bug - `get_strategy()` called during chance node loop, strategy changed mid-iteration
+- **Evidence:** CPU and GPU had OPPOSITE regret signs (CPU: Check better, GPU: All-in better)
+- **Why it's not worth retrying:** Bug is fixed, CPU now matches GPU
+
+### ❌ 3. Looking for EV bugs in GPU kernel
+- **What we tried:** Created debug kernels to trace EV values at all nodes
+- **Why it failed:** EVs are computed correctly; chance node averaging is correct
+- **Evidence:** Debug output showed correct EV values
+- **Why it's not worth retrying:** EV computation is verified correct
+
+### ❌ 4. Double-weighting hypothesis
+- **What we tried:** Checked if child EVs already contained reach weighting
+- **Why it failed:** EVs are conditional values, not reach-weighted
+- **Evidence:** Code inspection confirmed EVs are not pre-weighted
+- **Why it's not worth retrying:** Not the issue
 
 ## Key Debug Data
 
@@ -85,20 +103,20 @@ River Node 7 (OOP AA):
   GPU: Check=0, All-in=13946.875  ✓ MATCH
 ```
 
-### Debug Script Output: Per-Deal Analysis for IP JJ
+### Final Strategy (1000 iterations) - BOTH CPU AND GPU
 ```
-Total deals with IP JJ: 234
-Total Check regret: -4714.8 (floored to 0)
-Total All-in regret: +4714.8
-Expected optimal: All-in
-
-When OOP plays optimally:
-  Check EV: 30.6
-  All-in EV: 43.5
-  Optimal for IP JJ: All-in
+Node 0 (OOP turn): Check 97.0%, All-in 3.0%
+Node 1 (IP after OOP check): Check 98.9%, All-in 1.1%
+Node 4 (OOP facing all-in): Fold 55.3%, Call 44.7%
 ```
 
-### Problem Symptoms
-- At iteration 1: All-in regret is positive (344.74), so IP should play All-in
-- After many iterations: Check regret dominates, solver converges to 99% Check
-- This happens even though All-in should be better based on manual EV calculation
+### WASM/Pio Expected
+```
+Node 0 (OOP turn): Check 91.8%, All-in 8.2%
+Node 1 (IP after OOP check): Check ~60%, All-in ~40%
+```
+
+## Rollback Instructions
+If next session breaks things worse:
+1. `git checkout 8becd25` — last known good state (initial commit)
+2. All code is functional, just converges to wrong equilibrium
